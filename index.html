@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Aya Elsayed — متجر مستحضرات التجميل</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="header">
+    <img src="logo.jpg" class="imglogo">
+    <h1>Aya Elsayed</h1>
+  </header>
+
+  <div class="container">
+    <h2>منتجاتنا المميزة</h2>
+    <div id="products" class="grid">جاري التحميل...</div>
+  </div>
+
+  <button id="openCart" class="fab">🛍️ السلة (<span id="cartCount">0</span>)</button>
+
+  <!-- checkout modal -->
+  <div id="backdrop" class="modal-backdrop">
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3>إنهاء الطلب</h3>
+      <div id="cartDetails"></div>
+      <form id="checkoutForm">
+        <input required placeholder="الاسم الكامل" id="c_name">
+        <input required placeholder="رقم الهاتف" id="c_phone">
+        <textarea required placeholder="العنوان الكامل" id="c_address"></textarea>
+        <button class="btn" type="submit">أرسل الطلب</button>
+        <button type="button" class="btn ghost" id="closeModal">إلغاء</button>
+      </form>
+      <p id="checkoutMsg"></p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { supabase } from "./supabase.js";
+
+    // util cart stored in localStorage
+    const productsEl = document.getElementById('products');
+    const cartCount = document.getElementById('cartCount');
+    const openCart = document.getElementById('openCart');
+    const backdrop = document.getElementById('backdrop');
+    const cartDetails = document.getElementById('cartDetails');
+    const checkoutForm = document.getElementById('checkoutForm');
+    const closeModal = document.getElementById('closeModal');
+    const checkoutMsg = document.getElementById('checkoutMsg');
+
+    function getCart(){ return JSON.parse(localStorage.getItem('cart')||'[]');}
+    function setCart(c){ localStorage.setItem('cart', JSON.stringify(c)); updateCartCount(); }
+    function updateCartCount(){ cartCount.textContent = getCart().reduce((s,i)=>s+(i.quantity||1),0); }
+
+    // load products from supabase
+    async function loadProducts(){
+      const { data, error } = await supabase.from('products').select('*').order('created_at',{ascending:false});
+      if(error){ productsEl.innerHTML = "<p>حدث خطأ في تحميل المنتجات</p>"; console.error(error); return;}
+      if(!data || data.length===0){ productsEl.innerHTML = "<p>لا توجد منتجات بعد</p>"; return;}
+      productsEl.innerHTML = data.map(p => `
+        <div class="card">
+          <img src="${p.image_url||'assets/placeholder.jpg'}" alt="${p.title}">
+          <h3>${p.title}</h3>
+          <p>${p.description || ''}</p>
+          <p class="price">${p.price} جنيه</p>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn" data-add='${p.id}'>أضف للسلة</button>
+            <a class="btn ghost" href="product.html?id=${p.id}">عرض</a>
+          </div>
+        </div>
+      `).join('');
+      // attach events
+      document.querySelectorAll('[data-add]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const id = btn.getAttribute('data-add');
+          const product = data.find(x=>x.id===id);
+          addToCart(product);
+        });
+      });
+    }
+
+    function addToCart(product){
+      const cart = getCart();
+      const found = cart.find(i=>i.id===product.id);
+      if(found){ found.quantity = (found.quantity||1)+1; }
+      else cart.push({ id: product.id, title: product.title, price: product.price, image: product.image_url, quantity: 1});
+      setCart(cart);
+      alert('تمت الإضافة إلى السلة');
+    }
+
+    openCart.addEventListener("click", () => {
+  const items = getCart();
+  if (items.length === 0) {
+    alert("السلة فارغة");
+    return;
+  }
+
+  cartDetails.innerHTML = items
+    .map(
+      (i, index) => `
+      <div class="cart-row">
+        <img src="${i.image || "assets/placeholder.jpg"}" class="cart-img">
+
+        <div class="cart-info">
+          <strong>${i.title}</strong><br>
+          ${i.quantity} × ${i.price} جنيه
+        </div>
+
+        <button class="remove-btn" onclick="removeFromCart(${index})">❌</button>
+      </div>
+    `
+    )
+    .join("") +
+    `
+    <hr>
+    <p><strong>الإجمالي:</strong>
+    ${items.reduce((s, i) => s + i.price * (i.quantity || 1), 0)} جنيه</p>
+  `;
+
+  backdrop.style.display = "flex";
+});
+window.removeFromCart = function (index) {
+  let cart = getCart();
+  cart.splice(index, 1); // حذف المنتج
+  setCart(cart);
+
+  // إعادة فتح السلة بعد الحذف وتحديث المحتوى
+  openCart.click();
+};
+
+    closeModal.addEventListener('click', ()=> backdrop.style.display = 'none');
+
+    checkoutForm.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const name = document.getElementById('c_name').value.trim();
+      const phone = document.getElementById('c_phone').value.trim();
+      const address = document.getElementById('c_address').value.trim();
+      const items = getCart();
+      if(items.length===0) return alert('السلة فارغة');
+      const total = items.reduce((s,i)=>s+i.price*(i.quantity||1),0);
+      // write order to supabase
+      const { data, error } = await supabase
+  .from("orders")
+  .insert([
+    {
+      customer_name: name,
+      phone: phone,
+      address: address,
+      items: items, // بدون JSON.stringify
+      total: total,
+      status: "new"
+    }
+  ]);
+
+      if(error){ console.error(error); checkoutMsg.textContent = "حدث خطأ أثناء إرسال الطلب"; return; }
+      // clear cart
+      localStorage.removeItem('cart');
+      updateCartCount();
+      checkoutMsg.textContent = "✅ تم ارسال الطلب، شكراً لك!";
+      setTimeout(()=>{ backdrop.style.display='none'; checkoutMsg.textContent=''; checkoutForm.reset(); }, 1600);
+    });
+
+    // init
+    updateCartCount();
+    loadProducts();
+  </script>
+</body>
+</html>

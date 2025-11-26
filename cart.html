@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>سلة المشتريات - Aya Elsayed Shop</title>
+  <style>
+    body { font-family: 'Tajawal', sans-serif; background: #fff5f8; direction: rtl; text-align: right; padding: 20px; }
+    header, footer { text-align: center; background: #e91e63; color: white; padding: 10px; border-radius: 12px; }
+    main { margin-top: 20px; }
+    .cart-item {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      background: #fff;
+      border: 1px solid #f3a3bd;
+      border-radius: 12px;
+      padding: 10px;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    .cart-item img { width: 80px; border-radius: 8px; }
+    .cart-item input { width: 60px; text-align: center; border: 1px solid #ccc; border-radius: 6px; }
+    #totalPrice { font-weight: bold; color: #e91e63; font-size: 1.2em; margin: 15px 0; }
+    form input, form textarea, form button {
+      width: 100%; margin: 5px 0; padding: 10px;
+      border-radius: 8px; border: 1px solid #ccc;
+    }
+    form button {
+      background: #e91e63; color: #fff; border: none; cursor: pointer;
+      transition: 0.3s;
+    }
+    form button:hover { background: #c2185b; }
+    #msg { text-align: center; color: green; margin-top: 10px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1> Aya Elsayed Stor</h1>
+    <nav><a href="index.html" style="color:white;">🏠 الصفحة الرئيسية</a></nav>
+  </header>
+
+  <main>
+    <h2>🛍️ سلة المشتريات</h2>
+    <div id="cartItems">جاري تحميل السلة...</div>
+    <h3 id="totalPrice"></h3>
+
+    <h2>📦 بيانات الطلب</h2>
+    <form id="orderForm">
+      <input type="text" id="name" placeholder="الاسم بالكامل" required>
+      <input type="tel" id="phone" placeholder="رقم الهاتف" required>
+      <textarea id="address" placeholder="العنوان الكامل" required></textarea>
+      <button type="submit">إرسال الطلب ✅</button>
+    </form>
+    <p id="msg"></p>
+  </main>
+
+  <footer>
+    <p>© 2025 Aya Elsayed Shop - جميع الحقوق محفوظة</p>
+  </footer>
+
+  <script type="module">
+  import { db } from './firebase.js';
+  import { collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+  const orderForm = document.getElementById("orderForm");
+  const cartItemsDiv = document.getElementById("cartItems");
+  const totalPriceEl = document.getElementById("totalPrice");
+
+  // 🛍️ عرض السلة في الصفحة
+  const cart = JSON.parse(localStorage.getItem("cart")) || [];
+
+  if (cart.length === 0) {
+    cartItemsDiv.innerHTML = "<p>السلة فارغة 🛒</p>";
+  } else {
+    let total = 0;
+    cartItemsDiv.innerHTML = cart.map(item => {
+      total += parseFloat(item.price) || 0;
+      return `
+        <div style="border:1px solid #f8c6d8; border-radius:10px; padding:10px; margin:10px 0; background:#fff;">
+          <img src="${item.image}" alt="${item.name}" width="80">
+          <p><strong>${item.name}</strong></p>
+          <p>السعر: ${item.price} جنيه</p>
+        </div>
+      `;
+    }).join("");
+    totalPriceEl.textContent = `💰 الإجمالي: ${total} جنيه`;
+  }
+
+  // 📨 إرسال الطلب
+  orderForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const name = document.getElementById("name").value.trim();
+    const phone = document.getElementById("phone").value.trim();
+    const address = document.getElementById("address").value.trim();
+
+    if (cart.length === 0) {
+      alert("⚠️ السلة فارغة!");
+      return;
+    }
+
+    const formattedCart = cart.map(item => ({
+      name: item.name || "منتج بدون اسم",
+      price: item.price || "0",
+      image: item.image || "",
+      quantity: item.quantity ? parseInt(item.quantity) : 1
+    }));
+
+    const total = formattedCart.reduce((sum, item) => sum + (parseFloat(item.price) * (item.quantity || 1)), 0);
+
+    try {
+      await addDoc(collection(db, "orders"), {
+        name,
+        phone,
+        address,
+        items: formattedCart,
+        total,
+        date: new Date().toLocaleString("ar-EG")
+      });
+
+      localStorage.removeItem("cart");
+      orderForm.reset();
+      document.getElementById("msg").textContent = "✅ تم إرسال طلبك بنجاح!";
+      totalPriceEl.textContent = "";
+      cartItemsDiv.innerHTML = "<p>تم إرسال الطلب 🩷</p>";
+    } catch (error) {
+      console.error("❌ خطأ أثناء إرسال الطلب:", error);
+      alert("حدث خطأ أثناء إرسال الطلب، حاول مرة أخرى!");
+    }
+  });
+</script>
+
+</body>
+</html>

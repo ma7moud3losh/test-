@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>إتمام الطلب</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body dir="rtl">
+  <header>
+    <h1>إتمام الطلب</h1>
+  </header>
+
+  <main class="order-form">
+    <form id="orderForm">
+      <input type="text" id="name" placeholder="الاسم الكامل" required>
+      <input type="text" id="phone" placeholder="رقم الهاتف" required>
+      <input type="text" id="address" placeholder="العنوان بالتفصيل" required>
+      <button type="submit">تأكيد الطلب ✅</button>
+    </form>
+    <p id="msg"></p>
+  </main>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  // إعداد Firebase
+    const firebaseConfig = {
+  apiKey: "AIzaSyAvTOt8ISoXqxmuuOJ0ca9XGUHmbLriEdE",
+  authDomain: "aya-elsayed-shop.firebaseapp.com",
+  projectId: "aya-elsayed-shop",
+  storageBucket: "aya-elsayed-shop.firebasestorage.app",
+  messagingSenderId: "309450668221",
+  appId: "1:309450668221:web:e83c5fd6be2071e5a55fd4",
+  measurementId: "G-GD8NB6884L"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  const cart = JSON.parse(localStorage.getItem("cart")) || [];
+
+  document.getElementById("orderForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    if (cart.length === 0) return alert("السلة فارغة!");
+
+    const name = document.getElementById("name").value.trim();
+    const phone = document.getElementById("phone").value.trim();
+    const address = document.getElementById("address").value.trim();
+
+    try {
+      await addDoc(collection(db, "orders"), {
+        name,
+        phone,
+        address,
+        items: cart,
+        createdAt: new Date().toISOString()
+      });
+
+      localStorage.removeItem("cart");
+      document.getElementById("msg").textContent = "✅ تم إرسال طلبك بنجاح!";
+      document.getElementById("orderForm").reset();
+    } catch (error) {
+      console.error("❌ خطأ أثناء إرسال الطلب:", error);
+      alert("حدث خطأ أثناء إرسال الطلب، حاول مرة أخرى!");
+    }
+  });
+</script>
+
+</body>
+</html>
